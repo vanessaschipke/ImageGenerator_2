@@ -14,19 +14,6 @@ namespace SlideGenerator.Core.Services;
 /// </summary>
 public sealed class SlideLayoutService : ISlideLayoutService
 {
-    private const string Instruction =
-        "Read the slide image, then return one editable layout. Coordinates x, y, w, h are percentages of the image, origin top left, 0 to 100. " +
-        "Copy every character exactly: case, hyphens, spaces and line breaks. Use \\n for a printed line break. Do not correct, translate or shorten text. " +
-        "Text boxes must not overlap each other or any icon. Each box is only as wide and tall as its own text, wide enough that a printed line does not wrap again. Leave a gap of at least 1.2 percent between neighbors. " +
-        "Colors are RRGGBB without a hash, chosen only from this palette, the nearest color to what you see: " +
-        "002751, 003C74, 001130, FFFFFF, 000000, F8AD3E, 009DEC, 003E76, A50F14, 007973, BFC3C6, 0083A2, EA5B0C. " +
-        "On a light background use dark text 002751. On a dark background use white text FFFFFF and accents 009DEC. Never white text on a light fill, never dark text on a dark fill. " +
-        "kind=text for every text block. bold=true for titles, column headers and KPI numbers, bold=false for body and captions. fontSize is points on a 13.33 inch wide slide and must fit in the box: headers 13 to 16, item titles 9 to 11, body 8 to 9, KPI numbers 14 to 20, captions 7 to 9. Use 0 when the element is not text. align is left, center or right. vAlign is top, middle or bottom. " +
-        "kind=text is the important output. Each box hugs its own glyphs: do not include the icon, the card border or the next paragraph. On a dark bar the text is white and bold. " +
-        "kind=rect or roundRect only for a card or header bar you can see, with fill and a separate border color. " +
-        "kind=picture only for a real photograph. Icons, clocks, gauges and badges are measured from the image later. Do not redraw them and do not emit one picture of the whole slide. " +
-        "Order from back to front: cards, then text. No gradients, shadows or 3D.";
-
     private const string Schema = """
         {
           "type": "object",
@@ -41,7 +28,7 @@ public sealed class SlideLayoutService : ISlideLayoutService
                 "additionalProperties": false,
                 "required": ["kind", "x", "y", "w", "h", "text", "fontSize", "color", "fill", "bold", "align", "vAlign"],
                 "properties": {
-                  "kind": { "type": "string", "enum": ["text", "rect", "roundRect", "ellipse", "triangle", "diamond", "plus", "pie", "pentagon", "chevron", "line", "arrow", "leftArrow", "upArrow", "downArrow", "picture"] },
+                  "kind": { "type": "string", "enum": ["text"] },
                   "x": { "type": "number" },
                   "y": { "type": "number" },
                   "w": { "type": "number" },
@@ -100,6 +87,11 @@ public sealed class SlideLayoutService : ISlideLayoutService
         if (string.IsNullOrWhiteSpace(deployment))
             throw new InvalidOperationException("Chat-Deployment ist nicht konfiguriert. Unter Einstellungen gpt-5 (Version 2025-08-07) eintragen.");
 
+        var regions = SlideTextFit.Measure(imageBytes);
+        if (regions.Count == 0)
+            return new SlideLayout();
+
+        var instruction = SlideTextFit.BuildInstruction(regions);
         var visionBytes = PngCropper.ShrinkForVision(imageBytes, 1536);
         var mime = visionBytes.Length > 2 && visionBytes[0] == 0xFF && visionBytes[1] == 0xD8
             ? "image/jpeg"
@@ -118,7 +110,7 @@ public sealed class SlideLayoutService : ISlideLayoutService
                     role = "user",
                     content = new object[]
                     {
-                        new { type = "text", text = Instruction },
+                        new { type = "text", text = instruction },
                         new { type = "image_url", image_url = new { url = dataUrl, detail = "high" } }
                     }
                 }

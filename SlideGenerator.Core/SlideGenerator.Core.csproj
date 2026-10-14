@@ -8,6 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Fonts\BarlowCondensed-Bold.ttf" />
+    <EmbeddedResource Include="Fonts\BarlowCondensed-Medium.ttf" />
+    <EmbeddedResource Include="Fonts\Barlow-Bold.ttf" />
+    <EmbeddedResource Include="Fonts\Barlow-Medium.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" Version="12.24.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
