@@ -204,6 +204,8 @@ public static class SlideTextFit
                 glyphs.Add(glyph);
         }
 
+        if (Luma(background) > 150)
+            icons.AddRange(HeaderIcons(pixels, distance, width, height, background));
         glyphs.RemoveAll(glyph => InsideIcon(glyph, icons, width));
         if (Luma(background) > 150)
         {
@@ -214,6 +216,9 @@ public static class SlideTextFit
                 glyphs.Add(glyph);
             }
         }
+
+        icons.AddRange(StrokeIcons(glyphs));
+        glyphs.RemoveAll(glyph => InsideIcon(glyph, icons, width));
 
         var lines = Cluster(glyphs);
         SortReading(lines);
@@ -317,6 +322,63 @@ public static class SlideTextFit
     /// </summary>
     private static List<Glyph> BarLetters(SKColor[] pixels, int[] distance, int width, int height, SKColor background)
     {
+        var letters = new List<Glyph>();
+        foreach (var glyph in Components(LightOnBars(distance, width, height), pixels, distance, width, height, background, reversed: true))
+        {
+            if (glyph.Icon) continue;
+            var fill = glyph.Area / (double)Math.Max(1, glyph.W * glyph.H);
+            if (glyph.Area < 28 || glyph.W > 28 || glyph.H > 26 || glyph.H < 10 || glyph.W < 3 || fill < 0.28)
+                continue;
+            letters.Add(glyph);
+        }
+        return letters;
+    }
+
+    /// <summary>
+    /// Weiße Icons in dunklen Überschriftenbalken. Ihre Striche und Innenflächen dürfen keine Textzeile werden.
+    /// </summary>
+    private static List<Icon> HeaderIcons(SKColor[] pixels, int[] distance, int width, int height, SKColor background)
+    {
+        var parts = Components(LightOnBars(distance, width, height), pixels, distance, width, height, background, reversed: true);
+        var usable = parts.Where(part => part.Area >= 12 && part.W < 400 && part.H < 160).ToList();
+        var parent = Enumerable.Range(0, usable.Count).ToArray();
+        int Find(int i)
+        {
+            while (parent[i] != i)
+            {
+                parent[i] = parent[parent[i]];
+                i = parent[i];
+            }
+            return i;
+        }
+
+        for (var i = 0; i < usable.Count; i++)
+        {
+            for (var j = i + 1; j < usable.Count; j++)
+            {
+                if (BoxGap(usable[i], usable[j]) > 8) continue;
+                var ra = Find(i);
+                var rb = Find(j);
+                if (ra != rb) parent[rb] = ra;
+            }
+        }
+
+        var icons = new List<Icon>();
+        foreach (var group in usable.GroupBy(part => Find(usable.IndexOf(part))))
+        {
+            var list = group.ToList();
+            var x0 = list.Min(part => part.X);
+            var y0 = list.Min(part => part.Y);
+            var x1 = list.Max(part => part.X + part.W);
+            var y1 = list.Max(part => part.Y + part.H);
+            if (!IsHeaderIcon(x1 - x0, y1 - y0, list.Sum(part => part.Area))) continue;
+            icons.Add(new Icon(x0, y0, x1 - x0, y1 - y0));
+        }
+        return icons;
+    }
+
+    private static bool[] LightOnBars(int[] distance, int width, int height)
+    {
         var dark = new bool[distance.Length];
         for (var i = 0; i < distance.Length; i++)
             dark[i] = distance[i] > 75;
@@ -326,17 +388,104 @@ public static class SlideTextFit
         var light = new bool[distance.Length];
         for (var i = 0; i < distance.Length; i++)
             light[i] = grown[i] && distance[i] < 60;
+        return light;
+    }
 
-        var letters = new List<Glyph>();
-        foreach (var glyph in Components(light, pixels, distance, width, height, background, reversed: true))
+    /// <summary>
+    /// Strich-Icons neben Beschriftungen. Buchstaben sind dichter und bleiben übrig.
+    /// </summary>
+    private static List<Icon> StrokeIcons(List<Glyph> glyphs)
+    {
+        var usable = glyphs.Where(glyph =>
         {
-            if (glyph.Icon) continue;
             var fill = glyph.Area / (double)Math.Max(1, glyph.W * glyph.H);
-            if (glyph.Area < 28 || glyph.W > 28 || glyph.H > 26 || glyph.H < 10 || glyph.W < 3 || fill < 0.28)
-                continue;
-            letters.Add(glyph);
+            return fill < 0.36 && glyph.Area >= 20 && Math.Max(glyph.W, glyph.H) <= 140 && Math.Min(glyph.W, glyph.H) >= 3;
+        }).ToList();
+        var parent = Enumerable.Range(0, usable.Count).ToArray();
+        int Find(int i)
+        {
+            while (parent[i] != i)
+            {
+                parent[i] = parent[parent[i]];
+                i = parent[i];
+            }
+            return i;
         }
-        return letters;
+
+        for (var i = 0; i < usable.Count; i++)
+        {
+            for (var j = i + 1; j < usable.Count; j++)
+            {
+                if (BoxGap(usable[i], usable[j]) > 12) continue;
+                var ra = Find(i);
+                var rb = Find(j);
+                if (ra != rb) parent[rb] = ra;
+            }
+        }
+
+        var icons = new List<Icon>();
+        var groups = new Dictionary<int, List<Glyph>>();
+        for (var i = 0; i < usable.Count; i++)
+        {
+            var root = Find(i);
+            if (!groups.TryGetValue(root, out var list))
+            {
+                list = new List<Glyph>();
+                groups[root] = list;
+            }
+            list.Add(usable[i]);
+        }
+
+        foreach (var list in groups.Values)
+        {
+            var x0 = list.Min(part => part.X);
+            var y0 = list.Min(part => part.Y);
+            var x1 = list.Max(part => part.X + part.W);
+            var y1 = list.Max(part => part.Y + part.H);
+            if (IsTextRun(list, x1 - x0, y1 - y0)) continue;
+            if (!IsStrokeIcon(x1 - x0, y1 - y0, list.Sum(part => part.Area))) continue;
+            icons.Add(new Icon(x0, y0, x1 - x0, y1 - y0));
+        }
+        return icons;
+    }
+
+    private static bool IsTextRun(List<Glyph> glyphs, int boxW, int boxH)
+    {
+        if (glyphs.Count < 2 || boxW < boxH * 1.6) return false;
+        var heights = glyphs.Select(glyph => glyph.H).OrderBy(value => value).ToList();
+        var median = heights[heights.Count / 2];
+        if (median < 8) return false;
+        return glyphs.All(glyph => glyph.H > median * 0.6 && glyph.H < median * 1.65)
+            && boxH < median * 1.45;
+    }
+
+    private static bool IsStrokeIcon(int boxW, int boxH, int area)
+    {
+        if (boxW < 26 || boxH < 22 || boxW > 130 || boxH > 110) return false;
+        var aspect = boxW / (double)boxH;
+        if (aspect < 0.40 || aspect > 2.6) return false;
+        var fill = area / (double)Math.Max(1, boxW * boxH);
+        return fill is >= 0.05 and <= 0.42;
+    }
+
+    private static bool IsHeaderIcon(int boxW, int boxH, int area)
+    {
+        if (boxW < 26 || boxH < 26 || boxW > 92 || boxH > 92) return false;
+        var aspect = boxW / (double)boxH;
+        if (aspect < 0.70 || aspect > 1.42) return false;
+        var fill = area / (double)(boxW * boxH);
+        return fill is >= 0.08 and <= 0.42;
+    }
+
+    private static int BoxGap(Glyph a, Glyph b)
+    {
+        var dx = 0;
+        if (a.X + a.W < b.X) dx = b.X - (a.X + a.W);
+        else if (b.X + b.W < a.X) dx = a.X - (b.X + b.W);
+        var dy = 0;
+        if (a.Y + a.H < b.Y) dy = b.Y - (a.Y + a.H);
+        else if (b.Y + b.H < a.Y) dy = a.Y - (b.Y + b.H);
+        return Math.Max(dx, dy);
     }
 
     private static bool InsideIcon(Glyph glyph, List<Icon> icons, int width)
@@ -440,8 +589,8 @@ public static class SlideTextFit
                 var medW = part.Select(glyph => glyph.W).OrderBy(v => v).ElementAt(part.Count / 2);
                 var iconMedH = part.Select(glyph => glyph.H).OrderBy(v => v).ElementAt(part.Count / 2);
                 part.RemoveAll(glyph =>
-                    glyph.W > medW * 1.7
-                    && glyph.H > iconMedH * 1.25
+                    glyph.W > medW * 2.2
+                    && glyph.H > iconMedH * 1.8
                     && glyph.W / (double)Math.Max(1, glyph.H) is > 0.7 and < 1.45);
                 if (part.Count == 0) continue;
                 var x0 = part.Min(g => g.X);
@@ -459,6 +608,8 @@ public static class SlideTextFit
                 if (part.Count >= 4 && dots >= 0.7 * part.Count && medH < 16 && bh < 26)
                     continue;
                 if (part.Count == 1 && (bw < 11 || bh < 13))
+                    continue;
+                if (part.Count is >= 2 and <= 6 && bh >= 36 && bw <= bh * 2.1 && medW <= 18)
                     continue;
                 if (bh > 34 && medH < 0.48 * bh && bw < bh * 2.4)
                     continue;

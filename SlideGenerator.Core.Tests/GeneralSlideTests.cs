@@ -45,8 +45,18 @@ public class GeneralSlideTests
             && region.H > 1.5
             && IsLight(region.Color)).ToList();
 
-        Assert.True(headers.Count >= 3, "Helle Kopfzeilen: " + string.Join("; ", regions.Select(Describe)));
+        Assert.True(headers.Count >= 4, "Helle Kopfzeilen: " + string.Join("; ", regions.Select(Describe)));
         Assert.Contains(regions, region => region.Y < 12 && region.W > 20 && !IsLight(region.Color));
+        Assert.Contains(headers, region => region.X > 56 && region.X < 62 && region.W > 8);
+        var iconFragments = regions.Where(region =>
+            region.Y is > 20 and < 28
+            && region.W < 5
+            && region.H < 4).ToList();
+        Assert.True(iconFragments.Count == 0, "Icon als Text: " + string.Join("; ", iconFragments.Select(Describe)));
+
+        var chartIcon = regions.Where(region => region.X < 8 && region.Y is > 60 and < 72 && region.H > 3).ToList();
+        Assert.True(chartIcon.Count == 0, "Diagramm-Icon als Text: " + string.Join("; ", chartIcon.Select(Describe)));
+        Assert.Contains(regions, region => region.Y is > 48 and < 56 && region.X > 8 && region.W > 6);
     }
 
     [Fact]
