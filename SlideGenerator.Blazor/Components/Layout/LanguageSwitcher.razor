@@ -1,0 +1,43 @@
+@*
+   Umschalter fuer die UI-Sprache (EN / DE).
+   Wird im Header eingebunden. Persistiert die Auswahl ueber LanguageService -> localStorage.
+*@
+@inject SlideGenerator.Blazor.Localization.LanguageService Lang
+@implements IDisposable
+
+<div class="btn-group btn-group-sm" role="group" aria-label="@Lang.T("nav.language")">
+    <button type="button"
+            class="btn @(Lang.Current == "en" ? "btn-light" : "btn-outline-light")"
+            @onclick="@(() => SetAsync("en"))"
+            title="English">
+        EN
+    </button>
+    <button type="button"
+            class="btn @(Lang.Current == "de" ? "btn-light" : "btn-outline-light")"
+            @onclick="@(() => SetAsync("de"))"
+            title="Deutsch">
+        DE
+    </button>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += StateHasChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Lang.InitializeAsync();
+        }
+    }
+
+    private Task SetAsync(string code) => Lang.SetLanguageAsync(code);
+
+    public void Dispose()
+    {
+        Lang.OnChange -= StateHasChanged;
+    }
+}

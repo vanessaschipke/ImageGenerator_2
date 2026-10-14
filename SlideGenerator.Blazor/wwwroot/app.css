@@ -1,0 +1,278 @@
+/* =========================================================
+   Image Generator - R&S Corporate Design (Light)
+   ========================================================= */
+
+:root {
+    --rs-primary: #003c7e;     /* R&S Dunkelblau */
+    --rs-accent:  #0099cc;     /* R&S Hellblau   */
+    --rs-grey:    #f5f7fa;
+    --rs-text:    #1a1a1a;
+    --rs-border:  #d6dae0;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: var(--rs-text);
+    background-color: var(--rs-grey);
+}
+
+/* ---------- Layout-Frame ---------- */
+.rs-app {
+    background-color: var(--rs-grey);
+}
+
+.rs-header {
+    background-color: var(--rs-primary);
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+.rs-footer {
+    background-color: #ffffff;
+    color: #6c757d;
+    border-color: var(--rs-border) !important;
+}
+
+/* ---------- Navbar ---------- */
+.rs-navbar-primary {
+    background: linear-gradient(90deg, #002a5c 0%, var(--rs-primary) 55%, #004a99 100%);
+    padding: 0.75rem 1.25rem;
+    border-bottom: 3px solid var(--rs-accent);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.rs-navbar-primary .navbar-brand {
+    padding: 0;
+    margin-right: 1.5rem;
+}
+
+.rs-navbar-primary .nav-link {
+    color: rgba(255,255,255,0.85) !important;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 0.9rem;
+    transition: color .15s ease, border-color .15s ease;
+}
+
+.rs-navbar-primary .nav-link:hover,
+.rs-navbar-primary .nav-link.active {
+    color: #fff !important;
+    border-bottom-color: var(--rs-accent);
+}
+
+.rs-brand-mark {
+    background-color: var(--rs-accent);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    font-size: 0.95rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+.rs-brand-logo {
+    display: inline-block;
+    width: 180px;
+    height: 36px;
+    background: url('_content/RohdeSchwarz.SHAPE.WebApplication.Theme/icons/rus-logo.svg') no-repeat left center;
+    background-size: contain;
+    /* Logo wird auf dem dunkelblauen Header invertiert dargestellt, falls nötig */
+    filter: brightness(0) invert(1);
+}
+
+@media (max-width: 576px) {
+    .rs-brand-logo {
+        width: 40px;
+        background-image: url('_content/RohdeSchwarz.SHAPE.WebApplication.Theme/icons/rus-logo-symbol.svg');
+    }
+}
+
+.rs-brand-divider {
+    width: 1px;
+    height: 28px;
+    background-color: rgba(255,255,255,0.25);
+}
+
+.rs-brand-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: #fff;
+}
+
+.rs-brand-subtitle {
+    font-size: 0.72rem;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.65);
+    margin-top: 4px;
+}
+
+/* ---------- Cards / Buttons ---------- */
+.card {
+    border: 1px solid var(--rs-border);
+    border-radius: 6px;
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid var(--rs-border);
+    font-weight: 600;
+    color: var(--rs-primary);
+}
+
+.btn-primary {
+    background-color: var(--rs-primary);
+    border-color: var(--rs-primary);
+}
+.btn-primary:hover, .btn-primary:focus {
+    background-color: #002a5c;
+    border-color: #002a5c;
+}
+
+.btn-outline-primary {
+    color: var(--rs-primary);
+    border-color: var(--rs-primary);
+}
+.btn-outline-primary:hover {
+    background-color: var(--rs-primary);
+    color: #fff;
+}
+
+.text-rs-accent { color: var(--rs-accent); }
+
+/* ---------- Image Preview ---------- */
+.image-preview {
+    border: 2px dashed var(--rs-border);
+    border-radius: 6px;
+    background-color: #fff;
+    min-height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.image-preview img {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+}
+
+/* ---------- History tiles ---------- */
+.history-tile {
+    transition: transform .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+.history-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+.history-tile img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+
+/* Vollstaendiger Prompt-Text in der History (aufgeklappt).
+   Zeilenumbruch erzwingen, damit lange Prompts die Kachel nicht sprengen. */
+.history-tile .prompt-full {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-bottom: 0;
+}
+
+/* ---------- File input (lokalisiert) ----------
+   Blendet den nativen File-Picker (inkl. der Browser-Default-Texte
+   "Datei auswaehlen" / "Keine Datei ausgewaehlt") komplett aus und
+   ersetzt ihn durch ein eigenes Label + Anzeige des Dateinamens,
+   die ueber unseren LanguageService uebersetzt werden.
+   !important, weil das R&S-Theme sonst das Hiding ueberschreibt. */
+.rs-file-input {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.rs-file-input-native,
+input[type="file"].rs-file-input-native {
+    display: none !important;
+}
+
+.rs-file-input-label {
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+.rs-file-input-name {
+    font-size: 0.9rem;
+    word-break: break-all;
+    color: #6c757d;
+}
+
+/* ---------- Buttons im R&S Corporate-Look (Header-Dunkelblau) ----------
+   Das R&S SHAPE-Theme bringt eigene .btn-primary-Styles mit (oft Hellblau),
+   wir erzwingen hier die Header-Farbe #003c7e fuer alle 'primary'-Buttons,
+   damit Header, Choose-File-Outline und Generate-Image visuell zusammenpassen.
+   !important, damit das Theme nicht gewinnt. */
+.btn-primary,
+.rs-btn-primary,
+.btn.btn-primary.rs-btn-primary {
+    background-color: var(--rs-primary) !important;
+    border-color: var(--rs-primary) !important;
+    color: #fff !important;
+}
+
+/* ---------- Klassifizierungs-Hinweis im Header ---------- */
+.internal-usage-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 .25rem;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    line-height: 1.2;
+    color: #ff3b3b;                         /* kraeftiges Rot, gut lesbar auf Dunkelblau */
+    text-shadow: 0 1px 2px rgba(0,0,0,.35); /* leichter Schatten fuer bessere Lesbarkeit */
+    white-space: nowrap;
+}
+
+.btn-primary:hover,
+.rs-btn-primary:hover,
+.btn.btn-primary.rs-btn-primary:hover,
+.btn-primary:focus,
+.rs-btn-primary:focus {
+    background-color: #002a5c !important;
+    border-color: #002a5c !important;
+    color: #fff !important;
+}
+
+.btn-primary:disabled,
+.rs-btn-primary:disabled {
+    background-color: var(--rs-primary) !important;
+    border-color: var(--rs-primary) !important;
+    color: #fff !important;
+    opacity: 0.55;
+}
+
+/* Outline-Variante (z. B. Choose-File): nur Rahmen + Text in Dunkelblau. */
+.btn-outline-primary {
+    color: var(--rs-primary) !important;
+    border-color: var(--rs-primary) !important;
+    background-color: transparent !important;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+    background-color: var(--rs-primary) !important;
+    border-color: var(--rs-primary) !important;
+    color: #fff !important;
+}

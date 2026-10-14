@@ -1,0 +1,71 @@
+@inherits LayoutComponentBase
+@inject SlideGenerator.Core.Services.IUserContext UserContext
+@inject SlideGenerator.Blazor.Localization.LanguageService Lang
+@implements IDisposable
+
+<PageTitle>@Lang.T("app.title")</PageTitle>
+
+<VerticalLayout>
+    <ChildContent>
+        <NavBarPrimary Title="@Lang.T("app.title")" Subtitle="@Lang.T("app.subtitle")">
+            <NavItems>
+                <li class="nav-item d-flex align-items-center me-3">
+                    <span class="internal-usage-badge" title="Classification: Company Confidential">
+                        <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>Internal Use Only &ndash; Classified for CC
+                    </span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="">
+                        <i class="bi bi-image me-1"></i> @Lang.T("nav.generator")
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="history">
+                        <i class="bi bi-clock-history me-1"></i> @Lang.T("nav.history")
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="settings">
+                        <i class="bi bi-gear me-1"></i> @Lang.T("nav.settings")
+                    </a>
+                </li>
+                @if (UserContext.IsAuthenticated)
+                {
+                    <li class="nav-item">
+                        <span class="nav-link text-white-50" title="@Lang.T("nav.signedInAs")">
+                            <i class="bi bi-person-circle me-1"></i> @UserContext.DisplayName
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="/.auth/logout" title="@Lang.T("nav.logout")">
+                            <i class="bi bi-box-arrow-right me-1"></i> @Lang.T("nav.logout")
+                        </a>
+                    </li>
+                }
+                <li class="nav-item ms-lg-2">
+                    <LanguageSwitcher />
+                </li>
+            </NavItems>
+        </NavBarPrimary>
+    </ChildContent>
+
+    <Body>
+        @Body
+    </Body>
+
+    <Footer>
+        <small class="text-muted">@Lang.T("footer.text")</small>
+    </Footer>
+</VerticalLayout>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= StateHasChanged;
+    }
+}

@@ -1,0 +1,26 @@
+@*
+   Vertikales Grund-Layout im R&S Corporate Design.
+   Slots: ChildContent (alles oberhalb), Body (Hauptinhalt), Footer.
+*@
+
+<div class="rs-app d-flex flex-column min-vh-100">
+    <header class="rs-header">
+        @ChildContent
+    </header>
+
+    <main class="rs-body flex-grow-1">
+        <div class="container-fluid py-4">
+            @Body
+        </div>
+    </main>
+
+    <footer class="rs-footer text-center py-2 border-top">
+        @Footer
+    </footer>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Body { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+}

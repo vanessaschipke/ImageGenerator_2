@@ -1,0 +1,35 @@
+@*
+   Primaere Navigationsleiste im R&S Corporate Design.
+   - Title: Anzeigename links
+   - NavItems: <li class="nav-item">...</li>-Eintraege
+*@
+
+<nav class="navbar navbar-expand-lg rs-navbar-primary">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold text-white d-flex align-items-center gap-3" href="">
+            <span class="rs-brand-logo" aria-label="Rohde &amp; Schwarz"></span>
+            <span class="rs-brand-divider" aria-hidden="true"></span>
+            <span class="d-flex flex-column lh-1">
+                <span class="rs-brand-title">@Title</span>
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <span class="rs-brand-subtitle">@Subtitle</span>
+                }
+            </span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#rsPrimaryNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="rsPrimaryNav">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+                @NavItems
+            </ul>
+        </div>
+    </div>
+</nav>
+
+@code {
+    [Parameter] public string Title { get; set; } = "App";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? NavItems { get; set; }
+}

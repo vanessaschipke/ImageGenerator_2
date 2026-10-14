@@ -1,0 +1,261 @@
+@page "/history"
+@inject IImageHistoryService HistoryService
+@inject SlideGenerator.Blazor.Localization.LanguageService Lang
+@inject IJSRuntime JS
+@implements IDisposable
+
+<h2 class="mb-3">
+    <i class="bi bi-clock-history me-2 text-rs-accent"></i>
+    @Lang.T("history.title")
+</h2>
+
+@if (_entries is null)
+{
+    <p class="text-muted">@Lang.T("history.loading")</p>
+}
+else if (_entries.Count == 0)
+{
+    <div class="alert alert-info">
+        @Lang.T("history.empty") <a href="">@Lang.T("history.emptyLink")</a>.
+    </div>
+}
+else
+{
+    @if (_pptxError is not null)
+    {
+        <div class="alert alert-danger">@_pptxError</div>
+    }
+    <div class="row g-3">
+        @foreach (var entry in _entries)
+        {
+            var expanded = _expanded.Contains(entry.Id);
+            var editing = _editingId == entry.Id;
+            var justCopied = _justCopiedId == entry.Id;
+
+            <div class="col-12 col-md-6 col-lg-4 col-xl-3">
+                <div class="card history-tile h-100">
+                    <a href="@($"/{entry.ImageRelativePath}")" target="_blank">
+                        <img src="@($"/{entry.ImageRelativePath}")" alt="Image" />
+                    </a>
+                    <div class="card-body d-flex flex-column">
+                        <p class="small text-muted mb-1">
+                            @entry.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                            &middot; @entry.Size &middot; @entry.Quality
+                            @if (entry.HadInputImage)
+                            {
+                                <span class="badge bg-secondary ms-1">@Lang.T("history.withInput")</span>
+                            }
+                        </p>
+
+                        @if (editing)
+                        {
+                            <textarea class="form-control form-control-sm mb-2"
+                                      rows="5"
+                                      @bind="_editBuffer"></textarea>
+                            <small class="text-muted mb-2">@Lang.T("history.editHint")</small>
+                            <div class="d-flex gap-2 mb-2">
+                                <button class="btn btn-sm btn-primary flex-grow-1"
+                                        @onclick="() => SaveEditAsync(entry.Id)">
+                                    <i class="bi bi-check2"></i> @Lang.T("history.save")
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="CancelEdit">
+                                    @Lang.T("history.cancel")
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            @if (expanded)
+                            {
+                                <pre class="small bg-light p-2 mb-2 rounded prompt-full">@entry.UserPrompt</pre>
+                            }
+                            else
+                            {
+                                <p class="small mb-2 text-truncate" title="@entry.UserPrompt">
+                                    @entry.UserPrompt
+                                </p>
+                            }
+
+                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => ToggleExpand(entry.Id)"
+                                        title="@(expanded ? Lang.T("history.hidePrompt") : Lang.T("history.showPrompt"))">
+                                    <i class="bi @(expanded ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => CopyPromptAsync(entry.Id, entry.UserPrompt)"
+                                        title="@Lang.T("history.copyPrompt")">
+                                    <i class="bi @(justCopied ? "bi-check2" : "bi-clipboard")"></i>
+                                    @if (justCopied)
+                                    {
+                                        <span class="ms-1">@Lang.T("history.copied")</span>
+                                    }
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => BeginEdit(entry)"
+                                        title="@Lang.T("history.editPrompt")">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                        }
+
+                        <div class="d-flex gap-2 mt-auto">
+                            <a class="btn btn-sm btn-outline-primary flex-grow-1"
+                               href="@($"/{entry.ImageRelativePath}")"
+                               download="@($"image-{entry.Id}.png")">
+                                <i class="bi bi-download"></i> @Lang.T("history.download")
+                            </a>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    @onclick="() => CreatePptxAsync(entry.Id)"
+                                    disabled="@(_pptxBusyId == entry.Id)"
+                                    title="@Lang.T("home.downloadPptxHint")">
+                                @if (_pptxBusyId == entry.Id)
+                                {
+                                    <span class="spinner-border spinner-border-sm"></span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-file-earmark-slides"></i>
+                                }
+                                @Lang.T("history.downloadPptx")
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(entry.Id)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<HistoryEntry>? _entries;
+
+    // Karten, deren Prompt aktuell aufgeklappt ist.
+    private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
+
+    // Karte im Edit-Modus (nur eine gleichzeitig).
+    private string? _editingId;
+    private string _editBuffer = string.Empty;
+
+    // Feedback nach Copy-Klick.
+    private string? _justCopiedId;
+    private string? _pptxBusyId;
+    private string? _pptxError;
+    private CancellationTokenSource? _copyFeedbackCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Lang.OnChange += StateHasChanged;
+        await ReloadAsync();
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= StateHasChanged;
+        _copyFeedbackCts?.Cancel();
+        _copyFeedbackCts?.Dispose();
+    }
+
+    private async Task ReloadAsync()
+    {
+        var all = await HistoryService.GetAllAsync();
+        _entries = all.ToList();
+    }
+
+    private async Task CreatePptxAsync(string id)
+    {
+        if (_pptxBusyId is not null) return;
+
+        _pptxBusyId = id;
+        _pptxError = null;
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "slideGeneratorInterop.downloadUrl",
+                $"/export/pptx/{id}",
+                $"slide-{id}.pptx");
+        }
+        catch (Exception ex)
+        {
+            _pptxError = ex.Message;
+        }
+        finally
+        {
+            _pptxBusyId = null;
+        }
+    }
+
+    private async Task DeleteAsync(string id)
+    {
+        await HistoryService.DeleteAsync(id);
+        _expanded.Remove(id);
+        if (_editingId == id) CancelEdit();
+        await ReloadAsync();
+    }
+
+    private void ToggleExpand(string id)
+    {
+        if (!_expanded.Add(id))
+        {
+            _expanded.Remove(id);
+        }
+    }
+
+    private void BeginEdit(HistoryEntry entry)
+    {
+        _editingId = entry.Id;
+        _editBuffer = entry.UserPrompt;
+        _expanded.Add(entry.Id);
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _editBuffer = string.Empty;
+    }
+
+    private async Task SaveEditAsync(string id)
+    {
+        var newText = _editBuffer ?? string.Empty;
+        await HistoryService.UpdateUserPromptAsync(id, newText);
+        _editingId = null;
+        _editBuffer = string.Empty;
+        await ReloadAsync();
+    }
+
+    private async Task CopyPromptAsync(string id, string text)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("slideGeneratorInterop.copyText", text ?? string.Empty);
+        }
+        catch
+        {
+            // Clipboard-Fehler nicht eskalieren; Benutzer bekommt nur kein Feedback.
+            return;
+        }
+
+        _copyFeedbackCts?.Cancel();
+        _copyFeedbackCts?.Dispose();
+        _copyFeedbackCts = new CancellationTokenSource();
+        var token = _copyFeedbackCts.Token;
+        _justCopiedId = id;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(1500, token);
+                if (token.IsCancellationRequested) return;
+                _justCopiedId = null;
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (TaskCanceledException) { }
+        }, token);
+    }
+}

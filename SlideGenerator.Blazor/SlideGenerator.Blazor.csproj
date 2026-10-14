@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>12.0</LangVersion>
+    <RootNamespace>SlideGenerator.Blazor</RootNamespace>
+    <UserSecretsId>3397d107-8bbb-43cf-901e-faa8571a1a7d</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RohdeSchwarz.SHAPE.WebApplication.Theme" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SlideGenerator.Core\SlideGenerator.Core.csproj" />
+  </ItemGroup>
+
+</Project>

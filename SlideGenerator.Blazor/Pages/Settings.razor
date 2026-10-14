@@ -1,0 +1,149 @@
+@page "/settings"
+@using SlideGenerator.Core.Models
+@inject IUserSettingsService SettingsService
+@inject SlideGenerator.Blazor.Localization.LanguageService Lang
+@implements IDisposable
+
+<h2 class="mb-3">
+    <i class="bi bi-gear me-2 text-rs-accent"></i>
+    @Lang.T("settings.title")
+</h2>
+
+<div class="alert alert-info">
+    @Lang.T("settings.localOnly")
+</div>
+
+@if (_settings is null)
+{
+    <p class="text-muted">@Lang.T("settings.loading")</p>
+}
+else
+{
+    <div class="card">
+        <div class="card-header">
+            <i class="bi bi-cloud me-1"></i> @Lang.T("settings.azureOpenAi")
+        </div>
+        <div class="card-body">
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">@Lang.T("settings.endpoint")</label>
+                <input class="form-control"
+                       placeholder="https://my-resource.openai.azure.com"
+                       @bind="_settings.Endpoint" />
+                <small class="form-text text-muted">
+                    @Lang.T("settings.endpointHelp")
+                </small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">@Lang.T("settings.apiKey")</label>
+                <div class="input-group">
+                    <input class="form-control"
+                           type="@(_showKey ? "text" : "password")"
+                           placeholder="@Lang.T("settings.apiKeyPlaceholder")"
+                           @bind="_settings.ApiKey" />
+                    <button class="btn btn-outline-secondary" type="button"
+                            @onclick="() => _showKey = !_showKey">
+                        <i class="bi @(_showKey ? "bi-eye-slash" : "bi-eye")"></i>
+                    </button>
+                </div>
+                <small class="form-text text-muted">
+                    @Lang.T("settings.apiKeyHelp")
+                </small>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold">@Lang.T("settings.deployment")</label>
+                    <input class="form-control"
+                           placeholder="gpt-image-2.5-flare"
+                           @bind="_settings.DeploymentName" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold">@Lang.T("settings.apiVersion")</label>
+                    <input class="form-control"
+                           placeholder="2025-04-01-preview"
+                           @bind="_settings.ApiVersion" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">@Lang.T("settings.chatDeployment")</label>
+                <input class="form-control"
+                       placeholder="gpt-5"
+                       @bind="_settings.ChatDeploymentName" />
+                <small class="form-text text-muted">
+                    @Lang.T("settings.chatDeploymentHelp")
+                </small>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-save me-1"></i>
+                    }
+                    @Lang.T("settings.save")
+                </button>
+            </div>
+
+            @if (_savedMessage is not null)
+            {
+                <div class="alert alert-success mt-3 mb-0">
+                    <i class="bi bi-check-circle me-1"></i> @_savedMessage
+                </div>
+            }
+            @if (_error is not null)
+            {
+                <div class="alert alert-danger mt-3 mb-0">
+                    <strong>@Lang.T("settings.error")</strong> @_error
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private UserSettings? _settings;
+    private bool _showKey;
+    private bool _busy;
+    private string? _savedMessage;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Lang.OnChange += StateHasChanged;
+        _settings = await SettingsService.GetAsync();
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= StateHasChanged;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_settings is null) return;
+
+        _busy = true;
+        _error = null;
+        _savedMessage = null;
+        try
+        {
+            await SettingsService.SaveAsync(_settings);
+            _savedMessage = Lang.T("settings.saved");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

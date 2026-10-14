@@ -1,0 +1,13 @@
+@using Microsoft.AspNetCore.Components.Routing
+@inject SlideGenerator.Blazor.Localization.LanguageService Lang
+
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="typeof(Layout)" />
+    </Found>
+    <NotFound>
+        <Layout>
+            <p class="alert alert-warning">@Lang.T("app.notFound")</p>
+        </Layout>
+    </NotFound>
+</Router>

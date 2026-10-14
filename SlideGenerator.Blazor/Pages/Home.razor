@@ -1,0 +1,323 @@
+@page "/"
+@using Microsoft.Extensions.Options
+@inject IAzureImageService ImageService
+@inject IImageHistoryService HistoryService
+@inject IOptions<AzureImageConfig> AzureConfig
+@inject IJSRuntime JS
+@inject SlideGenerator.Blazor.Localization.LanguageService Lang
+@implements IDisposable
+
+<div class="row g-4 align-items-stretch">
+    <!-- ===== Linke Spalte: Eingaben ===== -->
+    <div class="col-lg-5 d-flex">
+        <div class="card w-100">
+            <div class="card-header">
+                <i class="bi bi-magic me-1"></i> @Lang.T("home.cardTitle")
+            </div>
+            <div class="card-body d-flex flex-column">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">@Lang.T("home.masterPrompt")</label>
+                    <textarea class="form-control" rows="3" @bind="_masterPrompt"></textarea>
+                    <small class="form-text text-muted">
+                        @Lang.T("home.masterPromptHelp")
+                    </small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">@Lang.T("home.userPrompt")</label>
+                    <textarea class="form-control" rows="5"
+                              placeholder="@Lang.T("home.userPromptPlaceholder")"
+                              @bind="_userPrompt"></textarea>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <label class="form-label fw-bold">@Lang.T("home.size")</label>
+                        <select class="form-select" @bind="_size">
+                            <option value="1536x1024">@Lang.T("home.sizeWide")</option>
+                            <option value="1024x1024">@Lang.T("home.sizeSquare")</option>
+                            <option value="1024x1536">@Lang.T("home.sizePortrait")</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold">@Lang.T("home.quality")</label>
+                        <select class="form-select" @bind="_quality">
+                            <option value="high">high</option>
+                            <option value="medium">medium</option>
+                            <option value="low">low</option>
+                            <option value="auto">auto</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">@Lang.T("home.inputImage")</label>
+
+                    @* Eigener File-Picker:
+                       Das native <input type="file"> wird in einen unsichtbaren Wrapper-DIV
+                       gepackt (inline-Style, damit kein Theme dagegen ankommt).
+                       Der sichtbare Trigger ist ein <label for="...">, das den
+                       versteckten Input per ID anspricht. *@
+                    <div class="rs-file-input">
+                        <div style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;padding:0;margin:-1px;">
+                            <InputFile id="rsFileInput"
+                                       OnChange="OnFileSelected"
+                                       accept="image/png,image/jpeg,image/webp" />
+                        </div>
+                        <label for="rsFileInput" class="btn btn-outline-primary rs-file-input-label">
+                            <i class="bi bi-paperclip me-1"></i>@Lang.T("home.chooseFile")
+                        </label>
+                        <span class="rs-file-input-name">
+                            @(_inputFileName ?? Lang.T("home.noFileChosen"))
+                        </span>
+                    </div>
+
+                    @if (_inputFileName is not null)
+                    {
+                        <small class="form-text text-success d-block mt-1">
+                            <i class="bi bi-check-circle"></i>
+                            @_inputFileName (@(_inputBytes!.Length / 1024) KB)
+                            <button type="button" class="btn btn-sm btn-link p-0 ms-2 text-danger" @onclick="ClearInputFile">
+                                @Lang.T("home.remove")
+                            </button>
+                        </small>
+                    }
+                </div>
+
+                <button class="btn btn-primary rs-btn-primary w-100 mt-auto"
+                        @onclick="GenerateAsync"
+                        disabled="@(_busy || string.IsNullOrWhiteSpace(_userPrompt))">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>@Lang.T("home.generating")</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-stars me-1"></i>
+                        <span>@Lang.T("home.generate")</span>
+                    }
+                </button>
+
+                @if (_error is not null)
+                {
+                    <div class="alert alert-danger mt-3 mb-0">
+                        <strong>@Lang.T("home.error")</strong> @_error
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Rechte Spalte: Ergebnis ===== -->
+    <div class="col-lg-7 d-flex">
+        <div class="card w-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-image me-1"></i> @Lang.T("home.result")</span>
+                @if (_lastResult is not null)
+                {
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-sm btn-outline-primary"
+                           href="@_lastResultUrl"
+                           download="@($"image-{_lastResult.Id}.png")">
+                            <i class="bi bi-download me-1"></i> @Lang.T("home.download")
+                        </a>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-primary"
+                                @onclick="CreatePptxAsync"
+                                disabled="@_pptxBusy"
+                                title="@Lang.T("home.downloadPptxHint")">
+                            @if (_pptxBusy)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-file-earmark-slides me-1"></i>
+                            }
+                            @Lang.T("home.downloadPptx")
+                        </button>
+                    </div>
+                }
+            </div>
+            <div class="card-body d-flex flex-column">
+                <div class="image-preview flex-grow-1 d-flex align-items-center justify-content-center">
+                    @if (_busy)
+                    {
+                        <div class="text-center text-muted">
+                            <div class="spinner-border text-rs-accent" style="width:3rem;height:3rem;"></div>
+                            <p class="mt-3 mb-0">@Lang.T("home.pleaseWait")</p>
+                        </div>
+                    }
+                    else if (_lastResultUrl is not null)
+                    {
+                        <img src="@_lastResultUrl" alt="@Lang.T("home.imageAlt")" class="img-fluid" />
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted">
+                            <i class="bi bi-image" style="font-size:3rem;"></i>
+                            <p class="mt-3 mb-0">@Lang.T("home.noImageYet")</p>
+                        </div>
+                    }
+                </div>
+
+                @if (_lastResult?.RevisedPrompt is { Length: > 0 } revised)
+                {
+                    <details class="mt-3">
+                        <summary class="text-muted">@Lang.T("home.showRevised")</summary>
+                        <pre class="small bg-light p-2 mt-2 rounded">@revised</pre>
+                    </details>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _masterPrompt = string.Empty;
+    private string _userPrompt = string.Empty;
+    private string _size = "1536x1024";
+    private string _quality = "high";
+
+    // Default-Master-Prompt, der zuletzt aus dem LanguageService geladen wurde.
+    // Wir merken ihn uns, um zu erkennen, ob der User den Wert manuell geaendert hat.
+    private string _lastDefaultMasterPrompt = string.Empty;
+
+    private byte[]? _inputBytes;
+    private string? _inputContentType;
+    private string? _inputFileName;
+
+    private bool _busy;
+    private bool _pptxBusy;
+    private string? _error;
+
+    private ImageGenerationResult? _lastResult;
+    private string? _lastResultUrl;
+
+    private const long MaxUploadSize = 20 * 1024 * 1024; // 20 MB
+
+    protected override void OnInitialized()
+    {
+        var cfg = AzureConfig.Value;
+        _size = cfg.DefaultSize;
+        _quality = cfg.DefaultQuality;
+
+        // Default-Master-Prompt aus dem LanguageService nehmen (faellt automatisch auf EN).
+        _lastDefaultMasterPrompt = Lang.T("home.masterPromptDefault");
+        _masterPrompt = _lastDefaultMasterPrompt;
+
+        Lang.OnChange += OnLanguageChanged;
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged()
+    {
+        // Wenn der User den Master-Prompt nicht manuell veraendert hat,
+        // beim Sprachwechsel den Default in der neuen Sprache uebernehmen.
+        var newDefault = Lang.T("home.masterPromptDefault");
+        if (string.Equals(_masterPrompt, _lastDefaultMasterPrompt, StringComparison.Ordinal))
+        {
+            _masterPrompt = newDefault;
+        }
+        _lastDefaultMasterPrompt = newDefault;
+
+        StateHasChanged();
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file is null) return;
+
+            await using var ms = new MemoryStream();
+            await file.OpenReadStream(MaxUploadSize).CopyToAsync(ms);
+
+            _inputBytes = ms.ToArray();
+            _inputContentType = file.ContentType;
+            _inputFileName = file.Name;
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _inputBytes = null;
+            _inputContentType = null;
+            _inputFileName = null;
+        }
+    }
+
+    private async Task CreatePptxAsync()
+    {
+        if (_lastResult is null || _pptxBusy) return;
+
+        _pptxBusy = true;
+        _error = null;
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "slideGeneratorInterop.downloadUrl",
+                $"/export/pptx/{_lastResult.Id}",
+                $"slide-{_lastResult.Id}.pptx");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _pptxBusy = false;
+        }
+    }
+
+    private void ClearInputFile()
+    {
+        _inputBytes = null;
+        _inputContentType = null;
+        _inputFileName = null;
+    }
+
+    private async Task GenerateAsync()
+    {
+        _error = null;
+        _busy = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new ImageGenerationRequest
+            {
+                UserPrompt = _userPrompt,
+                MasterPrompt = _masterPrompt,
+                Size = _size,
+                Quality = _quality,
+                InputImage = _inputBytes,
+                InputImageContentType = _inputContentType,
+                InputImageFileName = _inputFileName,
+                UseBrandReference = true
+            };
+
+            _lastResult = await ImageService.GenerateAsync(request);
+            var entry = await HistoryService.SaveAsync(_lastResult, request);
+            _lastResultUrl = "/" + entry.ImageRelativePath;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _lastResult = null;
+            _lastResultUrl = null;
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+}
